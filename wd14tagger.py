@@ -1,4 +1,5 @@
 # https://huggingface.co/spaces/SmilingWolf/wd-v1-4-tags
+import time
 
 import comfy.utils
 import asyncio
@@ -46,6 +47,7 @@ def get_installed_models():
     models = [m for m in models if os.path.exists(os.path.join(models_dir, os.path.splitext(m)[0] + ".csv"))]
     return models
 
+cahced_models = {}
 
 async def tag(image, model_name, threshold=0.35, character_threshold=0.85, exclude_tags="", replace_underscore=True, trailing_comma=False, client_id=None, node=None):
     if model_name.endswith(".onnx"):
@@ -54,8 +56,15 @@ async def tag(image, model_name, threshold=0.35, character_threshold=0.85, exclu
     if not any(model_name + ".onnx" in s for s in installed):
         await download_model(model_name, client_id, node)
 
-    name = os.path.join(models_dir, model_name + ".onnx")
-    model = InferenceSession(name, providers=defaults["ortProviders"])
+    global cahced_models
+    if model_name not in cahced_models:
+        name = os.path.join(models_dir, model_name + ".onnx")
+        start = time.time()
+        model = InferenceSession(name, providers=defaults["ortProviders"])
+        log(f"Loaded model {model_name} in {time.time() - start:.2f}s", "DEBUG", True)
+        cahced_models[model_name] = model
+    else:
+        model = cahced_models[model_name]
 
     input = model.get_inputs()[0]
     height = input.shape[1]
